@@ -341,7 +341,7 @@
   <div class="page">
     <h1>QKD Repository Maturity Dashboard</h1>
     <div class="subtitle">
-      Browse QKD-related repositories, filter by maturity level, and inspect their relative strengths across core and maintenance metrics.
+      Browse QKD-related repositories, filter by maturity level, and inspect their strengths across core and maintenance metrics.
     </div>
 
     <div class="layout">
@@ -420,12 +420,10 @@
           </div>
 
           <div class="footer-text">
-            <strong>Note:</strong> If your CSV includes numeric columns
+            Metrics are read directly from the CSV columns:
             <code>Core_Features</code>, <code>Secondary_Features</code>,
             <code>Technical_Debt</code>, <code>Versioning</code>, and
-            <code>Maintenance</code>, those values will be used directly in the
-            radar chart. Otherwise, placeholder values are derived from
-            <code>Maturity_Level</code>.
+            <code>Maintenance</code> (0–100 scale recommended).
           </div>
         </div>
       </section>
@@ -434,22 +432,22 @@
 
   <script>
     // ---------- CONFIG ----------
-    const CSV_FILE = "list-of-repositories-ranked.csv";
+    const CSV_FILE = "list-of-repositories-ranked-with-metrics.csv";
 
     const METRIC_KEYS = [
-      "core_features",
-      "secondary_features",
-      "technical_debt",
-      "versioning",
-      "maintenance",
+      "Core_Features",
+      "Secondary_Features",
+      "Technical_Debt",
+      "Versioning",
+      "Maintenance",
     ];
 
     const METRIC_LABELS = {
-      core_features: "Core Features",
-      secondary_features: "Secondary Features",
-      technical_debt: "Technical Debt",
-      versioning: "Versioning",
-      maintenance: "Maintenance",
+      Core_Features: "Core Features",
+      Secondary_Features: "Secondary Features",
+      Technical_Debt: "Technical Debt",
+      Versioning: "Versioning",
+      Maintenance: "Maintenance",
     };
 
     let allRepos = [];
@@ -458,13 +456,6 @@
     let selectedRepoName = null;
 
     // ---------- HELPERS ----------
-
-    function normaliseKey(str) {
-      return String(str || "")
-        .trim()
-        .toLowerCase()
-        .replace(/\s+/g, "_");
-    }
 
     function formatDate(iso) {
       if (!iso) return "—";
@@ -482,59 +473,14 @@
     }
 
     function getMetricValues(repo) {
-      const values = [];
-      const repoKeys = Object.keys(repo || {}).reduce((acc, key) => {
-        acc[normaliseKey(key)] = key;
-        return acc;
-      }, {});
-
-      // Try to pull actual numeric metrics from the CSV first
-      METRIC_KEYS.forEach((mKey) => {
-        let val = null;
-        // Look for a column that matches this metric (by normalised name)
-        Object.entries(repoKeys).forEach(([normalized, original]) => {
-          if (normalized === mKey || normalized === mKey + "_score") {
-            const parsed = Number(repo[original]);
-            if (!Number.isNaN(parsed)) {
-              val = parsed;
-            }
-          }
-        });
-
-        if (val === null) {
-          // Fallback: derive a simple placeholder from Maturity_Level
-          const lvl = Number(repo["Maturity_Level"] || 1);
-          // Simple heuristic so the radar looks reasonable:
-          // different scaling per metric, but deterministic.
-          const base = Math.max(1, Math.min(5, lvl));
-          switch (mKey) {
-            case "core_features":
-              val = base * 18; // 18, 36, 54, 72, 90
-              break;
-            case "secondary_features":
-              val = 10 + base * 16;
-              break;
-            case "technical_debt":
-              // Higher level => lower technical debt
-              val = 100 - base * 13;
-              break;
-            case "versioning":
-              val = 20 + base * 14;
-              break;
-            case "maintenance":
-              val = 30 + base * 12;
-              break;
-            default:
-              val = base * 15;
-          }
-          // Clamp to [0,100]
-          val = Math.max(0, Math.min(100, val));
-        }
-
-        values.push(val);
+      // Read directly from metric columns; clamp to [0,100]
+      return METRIC_KEYS.map((key) => {
+        const raw = repo[key];
+        let val = Number(raw);
+        if (Number.isNaN(val)) val = 0;
+        val = Math.max(0, Math.min(100, val));
+        return val;
       });
-
-      return values;
     }
 
     function updateRepoCountPill() {
