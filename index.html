@@ -1,0 +1,839 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>QKD Repository Maturity Dashboard</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <!-- Chart.js for radar charts -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- PapaParse for CSV parsing -->
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+
+  <style>
+    :root {
+      --bg: #0f172a;
+      --bg-alt: #020617;
+      --card: #111827;
+      --accent: #38bdf8;
+      --accent-soft: rgba(56, 189, 248, 0.1);
+      --text: #e5e7eb;
+      --muted: #9ca3af;
+      --border: #1f2937;
+      --danger: #f97373;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+        sans-serif;
+      background: radial-gradient(circle at top left, #1e293b, #020617 55%);
+      color: var(--text);
+    }
+
+    .page {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 2rem 1.5rem 3rem;
+    }
+
+    h1 {
+      font-size: 1.8rem;
+      margin-bottom: 0.25rem;
+      letter-spacing: 0.03em;
+    }
+
+    .subtitle {
+      color: var(--muted);
+      font-size: 0.95rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+      gap: 1.5rem;
+    }
+
+    @media (max-width: 900px) {
+      .layout {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .card {
+      background: linear-gradient(145deg, #020617 0%, #020617 60%, #030712 100%);
+      border-radius: 1rem;
+      border: 1px solid var(--border);
+      box-shadow: 0 18px 45px rgba(0, 0, 0, 0.65);
+      padding: 1.2rem 1.3rem;
+    }
+
+    .card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 0.75rem;
+      gap: 0.75rem;
+    }
+
+    .card-title {
+      font-weight: 600;
+      font-size: 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .pill {
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.09em;
+      padding: 0.1rem 0.5rem;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      color: var(--muted);
+    }
+
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      align-items: center;
+    }
+
+    .input, .select {
+      background: #020617;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      padding: 0.35rem 0.75rem;
+      color: var(--text);
+      font-size: 0.85rem;
+      outline: none;
+      min-width: 0;
+    }
+
+    .input:focus, .select:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 1px var(--accent-soft);
+    }
+
+    .input::placeholder {
+      color: var(--muted);
+    }
+
+    .input-icon-wrapper {
+      position: relative;
+      display: flex;
+      align-items: center;
+    }
+
+    .input-icon-wrapper svg {
+      position: absolute;
+      left: 8px;
+      width: 14px;
+      height: 14px;
+      stroke: var(--muted);
+    }
+
+    .input-icon-wrapper input {
+      padding-left: 1.6rem;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.85rem;
+    }
+
+    thead {
+      background: rgba(15, 23, 42, 0.9);
+    }
+
+    th, td {
+      padding: 0.4rem 0.5rem;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+    }
+
+    th {
+      font-weight: 500;
+      color: var(--muted);
+      position: sticky;
+      top: 0;
+      background: rgba(15, 23, 42, 0.98);
+      backdrop-filter: blur(4px);
+      z-index: 1;
+    }
+
+    tbody tr {
+      cursor: pointer;
+      transition: background 0.12s ease, transform 0.08s ease;
+    }
+
+    tbody tr:hover {
+      background: rgba(30, 64, 175, 0.18);
+      transform: translateY(-1px);
+    }
+
+    tbody tr.selected {
+      background: rgba(56, 189, 248, 0.18);
+    }
+
+    .table-wrapper {
+      max-height: 450px;
+      overflow: auto;
+      border-radius: 0.75rem;
+      border: 1px solid var(--border);
+      background: radial-gradient(circle at top left, #020617, #020617);
+    }
+
+    .badge-level {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 1.6rem;
+      height: 1.2rem;
+      border-radius: 999px;
+      font-size: 0.7rem;
+      font-weight: 600;
+      border: 1px solid rgba(148, 163, 184, 0.5);
+    }
+
+    .badge-level-1 { color: #f97373; border-color: rgba(248, 113, 113, 0.75); }
+    .badge-level-2 { color: #fb923c; border-color: rgba(251, 146, 60, 0.75); }
+    .badge-level-3 { color: #facc15; border-color: rgba(250, 204, 21, 0.75); }
+    .badge-level-4 { color: #4ade80; border-color: rgba(74, 222, 128, 0.75); }
+    .badge-level-5 { color: #2dd4bf; border-color: rgba(45, 212, 191, 0.75); }
+
+    .badge-visibility {
+      font-size: 0.65rem;
+      padding: 0.15rem 0.45rem;
+      border-radius: 999px;
+      border: 1px solid rgba(148, 163, 184, 0.4);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+    }
+
+    .muted {
+      color: var(--muted);
+    }
+
+    .repo-name {
+      font-weight: 500;
+      font-size: 0.86rem;
+      color: #e5e7eb;
+    }
+
+    .repo-desc {
+      font-size: 0.8rem;
+      color: var(--muted);
+    }
+
+    .repo-meta-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.35rem;
+      align-items: center;
+      margin-top: 0.15rem;
+    }
+
+    .small-pill {
+      font-size: 0.7rem;
+      padding: 0.1rem 0.35rem;
+      border-radius: 999px;
+      background: rgba(15, 23, 42, 0.8);
+      border: 1px solid var(--border);
+    }
+
+    .chart-wrapper {
+      position: relative;
+      height: 340px;
+      margin-bottom: 0.75rem;
+    }
+
+    .metric-legend {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+      gap: 0.4rem;
+      font-size: 0.78rem;
+      margin-top: 0.25rem;
+    }
+
+    .metric-pill {
+      padding: 0.25rem 0.45rem;
+      border-radius: 0.6rem;
+      background: rgba(15, 23, 42, 0.9);
+      border: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .metric-pill span.value {
+      font-variant-numeric: tabular-nums;
+      color: var(--accent);
+      font-weight: 500;
+    }
+
+    .repo-detail-header {
+      margin-bottom: 0.6rem;
+    }
+
+    .repo-detail-name {
+      font-size: 1rem;
+      font-weight: 600;
+      margin-bottom: 0.15rem;
+    }
+
+    .repo-detail-sub {
+      font-size: 0.82rem;
+      color: var(--muted);
+    }
+
+    .repo-detail-sub a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+
+    .repo-detail-sub a:hover {
+      text-decoration: underline;
+    }
+
+    .chip-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.35rem;
+      margin-top: 0.3rem;
+    }
+
+    .chip {
+      font-size: 0.7rem;
+      padding: 0.2rem 0.5rem;
+      border-radius: 999px;
+      background: rgba(15, 23, 42, 0.9);
+      border: 1px solid var(--border);
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3rem;
+    }
+
+    .chip svg {
+      width: 12px;
+      height: 12px;
+      stroke: var(--muted);
+    }
+
+    .footer-text {
+      margin-top: 0.8rem;
+      font-size: 0.75rem;
+      color: var(--muted);
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <h1>QKD Repository Maturity Dashboard</h1>
+    <div class="subtitle">
+      Browse QKD-related repositories, filter by maturity level, and inspect their relative strengths across core and maintenance metrics.
+    </div>
+
+    <div class="layout">
+      <!-- LEFT: Table & filters -->
+      <section class="card">
+        <div class="card-header">
+          <div class="card-title">
+            Repositories
+            <span class="pill" id="repoCountPill">Loading…</span>
+          </div>
+          <div class="controls">
+            <div class="input-icon-wrapper">
+              <svg fill="none" viewBox="0 0 24 24" stroke-width="1.7" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round"
+                  d="m21 21-4.35-4.35M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14Z" />
+              </svg>
+              <input
+                id="searchInput"
+                class="input"
+                type="search"
+                placeholder="Search by name or description…"
+              />
+            </div>
+            <select id="levelFilter" class="select">
+              <option value="">All levels</option>
+              <option value="1">Level 1</option>
+              <option value="2">Level 2</option>
+              <option value="3">Level 3</option>
+              <option value="4">Level 4</option>
+              <option value="5">Level 5</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="table-wrapper">
+          <table id="repoTable">
+            <thead>
+              <tr>
+                <th>Name & description</th>
+                <th>Maturity</th>
+                <th>Date</th>
+                <th>Visibility</th>
+              </tr>
+            </thead>
+            <tbody>
+              <!-- Populated via JS -->
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- RIGHT: Radar & details -->
+      <section class="card">
+        <div class="card-header">
+          <div class="card-title">
+            Repository metrics
+            <span class="pill">Radar view</span>
+          </div>
+        </div>
+
+        <div id="detailPanel">
+          <div class="repo-detail-header">
+            <div class="repo-detail-name" id="detailName">Select a repository</div>
+            <div class="repo-detail-sub" id="detailDesc">
+              Click on any row in the table to inspect its scores across core features, secondary features, technical debt, versioning, and maintenance.
+            </div>
+            <div class="chip-row" id="detailChips"></div>
+          </div>
+
+          <div class="chart-wrapper">
+            <canvas id="radarChart"></canvas>
+          </div>
+
+          <div class="metric-legend" id="metricLegend">
+            <!-- Populated dynamically -->
+          </div>
+
+          <div class="footer-text">
+            <strong>Note:</strong> If your CSV includes numeric columns
+            <code>Core_Features</code>, <code>Secondary_Features</code>,
+            <code>Technical_Debt</code>, <code>Versioning</code>, and
+            <code>Maintenance</code>, those values will be used directly in the
+            radar chart. Otherwise, placeholder values are derived from
+            <code>Maturity_Level</code>.
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <script>
+    // ---------- CONFIG ----------
+    const CSV_FILE = "list-of-repositories-ranked.csv";
+
+    const METRIC_KEYS = [
+      "core_features",
+      "secondary_features",
+      "technical_debt",
+      "versioning",
+      "maintenance",
+    ];
+
+    const METRIC_LABELS = {
+      core_features: "Core Features",
+      secondary_features: "Secondary Features",
+      technical_debt: "Technical Debt",
+      versioning: "Versioning",
+      maintenance: "Maintenance",
+    };
+
+    let allRepos = [];
+    let filteredRepos = [];
+    let radarChart = null;
+    let selectedRepoName = null;
+
+    // ---------- HELPERS ----------
+
+    function normaliseKey(str) {
+      return String(str || "")
+        .trim()
+        .toLowerCase()
+        .replace(/\s+/g, "_");
+    }
+
+    function formatDate(iso) {
+      if (!iso) return "—";
+      const d = new Date(iso);
+      if (isNaN(d.getTime())) return iso;
+      return d.toISOString().slice(0, 10);
+    }
+
+    function createLevelBadge(level) {
+      const span = document.createElement("span");
+      const lvl = Number(level) || 0;
+      span.className = "badge-level badge-level-" + (lvl || 1);
+      span.textContent = lvl ? "L" + lvl : "–";
+      return span;
+    }
+
+    function getMetricValues(repo) {
+      const values = [];
+      const repoKeys = Object.keys(repo || {}).reduce((acc, key) => {
+        acc[normaliseKey(key)] = key;
+        return acc;
+      }, {});
+
+      // Try to pull actual numeric metrics from the CSV first
+      METRIC_KEYS.forEach((mKey) => {
+        let val = null;
+        // Look for a column that matches this metric (by normalised name)
+        Object.entries(repoKeys).forEach(([normalized, original]) => {
+          if (normalized === mKey || normalized === mKey + "_score") {
+            const parsed = Number(repo[original]);
+            if (!Number.isNaN(parsed)) {
+              val = parsed;
+            }
+          }
+        });
+
+        if (val === null) {
+          // Fallback: derive a simple placeholder from Maturity_Level
+          const lvl = Number(repo["Maturity_Level"] || 1);
+          // Simple heuristic so the radar looks reasonable:
+          // different scaling per metric, but deterministic.
+          const base = Math.max(1, Math.min(5, lvl));
+          switch (mKey) {
+            case "core_features":
+              val = base * 18; // 18, 36, 54, 72, 90
+              break;
+            case "secondary_features":
+              val = 10 + base * 16;
+              break;
+            case "technical_debt":
+              // Higher level => lower technical debt
+              val = 100 - base * 13;
+              break;
+            case "versioning":
+              val = 20 + base * 14;
+              break;
+            case "maintenance":
+              val = 30 + base * 12;
+              break;
+            default:
+              val = base * 15;
+          }
+          // Clamp to [0,100]
+          val = Math.max(0, Math.min(100, val));
+        }
+
+        values.push(val);
+      });
+
+      return values;
+    }
+
+    function updateRepoCountPill() {
+      const pill = document.getElementById("repoCountPill");
+      const total = allRepos.length;
+      const shown = filteredRepos.length;
+      pill.textContent = shown === total
+        ? `${total} repositories`
+        : `${shown} / ${total} shown`;
+    }
+
+    // ---------- TABLE RENDERING ----------
+
+    function renderTable() {
+      const tbody = document.querySelector("#repoTable tbody");
+      tbody.innerHTML = "";
+
+      filteredRepos.forEach((repo) => {
+        const tr = document.createElement("tr");
+
+        if (repo.Name === selectedRepoName) {
+          tr.classList.add("selected");
+        }
+
+        tr.addEventListener("click", () => {
+          selectedRepoName = repo.Name;
+          showRepoDetails(repo);
+          // Update selected row styles
+          document.querySelectorAll("#repoTable tbody tr").forEach((row) => {
+            row.classList.remove("selected");
+          });
+          tr.classList.add("selected");
+        });
+
+        // --- Name & description cell ---
+        const nameCell = document.createElement("td");
+        const nameDiv = document.createElement("div");
+        nameDiv.className = "repo-name";
+        nameDiv.textContent = repo.Name || "Unnamed repository";
+
+        const descDiv = document.createElement("div");
+        descDiv.className = "repo-desc";
+        descDiv.textContent = repo.Description || "No description";
+
+        const metaRow = document.createElement("div");
+        metaRow.className = "repo-meta-row";
+
+        const levelBadge = createLevelBadge(repo.Maturity_Level);
+        metaRow.appendChild(levelBadge);
+
+        const maturityLabel = document.createElement("span");
+        maturityLabel.className = "small-pill";
+        maturityLabel.textContent = `Maturity L${repo.Maturity_Level || "?"}`;
+        metaRow.appendChild(maturityLabel);
+
+        nameCell.appendChild(nameDiv);
+        nameCell.appendChild(descDiv);
+        nameCell.appendChild(metaRow);
+
+        // --- Maturity cell ---
+        const maturityCell = document.createElement("td");
+        maturityCell.appendChild(createLevelBadge(repo.Maturity_Level));
+
+        // --- Date cell ---
+        const dateCell = document.createElement("td");
+        dateCell.textContent = formatDate(repo.Date);
+
+        // --- Visibility cell ---
+        const visCell = document.createElement("td");
+        const visSpan = document.createElement("span");
+        visSpan.className = "badge-visibility";
+        visSpan.textContent = (repo.Visibility || "").toUpperCase() || "–";
+        visCell.appendChild(visSpan);
+
+        tr.appendChild(nameCell);
+        tr.appendChild(maturityCell);
+        tr.appendChild(dateCell);
+        tr.appendChild(visCell);
+        tbody.appendChild(tr);
+      });
+
+      updateRepoCountPill();
+    }
+
+    function applyFilters() {
+      const searchTerm = document
+        .getElementById("searchInput")
+        .value.trim()
+        .toLowerCase();
+      const levelFilter = document.getElementById("levelFilter").value;
+
+      filteredRepos = allRepos.filter((repo) => {
+        const matchesLevel =
+          !levelFilter || String(repo.Maturity_Level) === levelFilter;
+
+        const text =
+          (repo.Name || "") + " " + (repo.Description || "") + " " + (repo.Visibility || "");
+        const matchesSearch = text.toLowerCase().includes(searchTerm);
+
+        return matchesLevel && matchesSearch;
+      });
+
+      renderTable();
+    }
+
+    // ---------- RADAR CHART & DETAILS ----------
+
+    function showRepoDetails(repo) {
+      if (!repo) return;
+
+      const nameEl = document.getElementById("detailName");
+      const descEl = document.getElementById("detailDesc");
+      const chipsEl = document.getElementById("detailChips");
+      const legendEl = document.getElementById("metricLegend");
+
+      nameEl.textContent = repo.Name || "Unnamed repository";
+      descEl.textContent = repo.Description || "No description.";
+
+      // Maybe it's a "owner/name" style string — build a GitHub link
+      const ghLink =
+        typeof repo.Name === "string" && repo.Name.includes("/")
+          ? `https://github.com/${repo.Name}`
+          : null;
+
+      if (ghLink) {
+        descEl.innerHTML =
+          (repo.Description || "No description.") +
+          ` &nbsp;·&nbsp;<a href="${ghLink}" target="_blank" rel="noopener noreferrer">Open on GitHub</a>`;
+      }
+
+      chipsEl.innerHTML = "";
+
+      // Level chip
+      const levelChip = document.createElement("span");
+      levelChip.className = "chip";
+      levelChip.innerHTML = `
+        <svg fill="none" viewBox="0 0 24 24" stroke-width="1.7" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round"
+            d="M12 6v12m-6-6h12M5 5l14 14" />
+        </svg>
+        Level ${repo.Maturity_Level || "?"}
+      `;
+      chipsEl.appendChild(levelChip);
+
+      // Visibility chip
+      if (repo.Visibility) {
+        const visChip = document.createElement("span");
+        visChip.className = "chip";
+        visChip.innerHTML = `
+          <svg fill="none" viewBox="0 0 24 24" stroke-width="1.7" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round"
+              d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+            <path stroke-linecap="round" stroke-linejoin="round"
+              d="M2.458 12C3.732 7.943 7.523 5 12 5c4.477 0 8.268 2.943 9.542 7-1.274 4.057-5.065 7-9.542 7-4.477 0-8.268-2.943-9.542-7Z" />
+          </svg>
+          ${String(repo.Visibility).toUpperCase()}
+        `;
+        chipsEl.appendChild(visChip);
+      }
+
+      // Date chip
+      if (repo.Date) {
+        const dateChip = document.createElement("span");
+        dateChip.className = "chip";
+        dateChip.innerHTML = `
+          <svg fill="none" viewBox="0 0 24 24" stroke-width="1.7" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round"
+              d="M8 7V3m8 4V3M5 11h14M5 6h14a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2Z" />
+          </svg>
+          Last activity: ${formatDate(repo.Date)}
+        `;
+        chipsEl.appendChild(dateChip);
+      }
+
+      const metricValues = getMetricValues(repo);
+      const labels = METRIC_KEYS.map((key) => METRIC_LABELS[key]);
+
+      // Radar chart
+      const ctx = document.getElementById("radarChart").getContext("2d");
+      if (radarChart) {
+        radarChart.destroy();
+      }
+
+      radarChart = new Chart(ctx, {
+        type: "radar",
+        data: {
+          labels,
+          datasets: [
+            {
+              label: repo.Name || "Repository",
+              data: metricValues,
+              fill: true,
+              backgroundColor: "rgba(56, 189, 248, 0.15)",
+              borderColor: "rgba(56, 189, 248, 1)",
+              pointBackgroundColor: "rgba(56, 189, 248, 1)",
+              pointBorderColor: "#0f172a",
+              pointRadius: 3.5,
+              borderWidth: 2,
+            },
+          ],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            r: {
+              angleLines: { color: "rgba(148, 163, 184, 0.2)" },
+              grid: { color: "rgba(30, 64, 175, 0.3)" },
+              suggestedMin: 0,
+              suggestedMax: 100,
+              ticks: {
+                display: true,
+                backdropColor: "transparent",
+                color: "rgba(148, 163, 184, 0.9)",
+                stepSize: 20,
+                font: { size: 9 },
+              },
+              pointLabels: {
+                color: "#e5e7eb",
+                font: { size: 11 },
+              },
+            },
+          },
+          plugins: {
+            legend: {
+              display: false,
+            },
+            tooltip: {
+              callbacks: {
+                label: function (ctx) {
+                  return `${ctx.label}: ${ctx.formattedValue}`;
+                },
+              },
+            },
+          },
+        },
+      });
+
+      // Legend pills with values
+      legendEl.innerHTML = "";
+      METRIC_KEYS.forEach((key, idx) => {
+        const pill = document.createElement("div");
+        pill.className = "metric-pill";
+        const labelSpan = document.createElement("span");
+        labelSpan.textContent = METRIC_LABELS[key];
+        const valueSpan = document.createElement("span");
+        valueSpan.className = "value";
+        valueSpan.textContent = metricValues[idx].toFixed(0);
+        pill.appendChild(labelSpan);
+        pill.appendChild(valueSpan);
+        legendEl.appendChild(pill);
+      });
+    }
+
+    // ---------- CSV LOADING ----------
+
+    function loadCSV() {
+      Papa.parse(CSV_FILE, {
+        download: true,
+        header: true,
+        skipEmptyLines: true,
+        complete: function (results) {
+          allRepos = results.data || [];
+          filteredRepos = allRepos.slice();
+          updateRepoCountPill();
+          renderTable();
+
+          // Auto-select first repo if available
+          if (filteredRepos.length > 0) {
+            selectedRepoName = filteredRepos[0].Name;
+            showRepoDetails(filteredRepos[0]);
+            // Add selected class to first row
+            const firstRow = document.querySelector("#repoTable tbody tr");
+            if (firstRow) firstRow.classList.add("selected");
+          } else {
+            showRepoDetails(null);
+          }
+        },
+        error: function (err) {
+          console.error("Error loading CSV:", err);
+          document.getElementById("repoCountPill").textContent =
+            "Failed to load CSV";
+        },
+      });
+    }
+
+    // ---------- INIT ----------
+
+    window.addEventListener("DOMContentLoaded", () => {
+      document
+        .getElementById("searchInput")
+        .addEventListener("input", applyFilters);
+
+      document
+        .getElementById("levelFilter")
+        .addEventListener("change", applyFilters);
+
+      loadCSV();
+    });
+  </script>
+</body>
+</html>
